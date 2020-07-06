@@ -36,11 +36,11 @@ public:
         cout << "BackingStore was destroyed. \n";
     }
 
-    void readPage(int page, char* target) {             // Diavasoume apo to binary arxeio kai apothikeuoume sto target ta data mas
-        if (fseek(fp, page*PAGE_SIZE, SEEK_SET)<0) {    //proetoimazoume tin fread na diavasei ta swsta data, Metakinoumaste ana PAGE_SIZE bytes panta
+    void readPage(int page, char* target) {             // Read the file from the binary and save our tags to the target
+        if (fseek(fp, page*PAGE_SIZE, SEEK_SET)<0) {    
             cerr << "Warning: fseek failed!" << endl;
         }
-        if (fread(target, PAGE_SIZE, 1, fp)<0) {        //diavazoume kathe fora 256 bytes (1 PAGE_SIZE)
+        if (fread(target, PAGE_SIZE, 1, fp)<0) {        //we read 256 bytes at a time(1 PAGE_SIZE)
             cerr << "Warning: fread failed!" << endl;
         }
     }
@@ -75,7 +75,7 @@ public:
         }
     }
 
-    void insert(int page, int frame) {  //insert frame in VM table in position pinakas[page] // exoume panta xwro sto VM table na eisagoume
+    void insert(int page, int frame) {  //insert frame in VM table in position pinakas[page] // we always have space in the BM board to import
         pinakas[page].empty = false;
         pinakas[page].frame = frame;
     }
@@ -92,7 +92,7 @@ public:
 class PhysicalMemoryRow {
 public:
     char data[FRAME_SIZE];  // frame size
-    int age;                //for lru arxika alla perito sti sunexeia
+    int age;                //initializing for lru
     bool empty;
 
     PhysicalMemoryRow() : age(0), empty(true) {
@@ -121,7 +121,7 @@ public:
                 return i;   // returns framenumber ...
             }
         }
-        // lru code den xreiazetai perito meta apo dieukrini xatzieuthimiadis //thewroume oti exoume aafthoni mnimi telika
+        // lru code  //we think we have an infinite memory
         int minage = pinakas[0].age;
         int position = 0;
         for (int i=1;i<MEMORY_SIZE;i++) {
@@ -142,7 +142,7 @@ public:
         }
     }
 
-    void updateAge(int frame) { //prepei na gnwrizoume pote xrisimopoihthike teleutaia kathe frame
+    void updateAge(int frame) { 
         max_age++;
         pinakas[frame].age = max_age;
     }
@@ -161,7 +161,7 @@ public:
 
 class TranslationLookAsideBuffer {
 public:
-    int max_age;    // gia ton lru
+    int max_age;    // for lru
     TranslationLookAsideBufferRow pinakas[TLB_SIZE];
 
     TranslationLookAsideBuffer() : max_age(0) {
@@ -172,7 +172,7 @@ public:
         cout << "Translation lookaside buffer was destroyed." << endl;
     }
 
-    bool contains(int page) {      // epistrefei true an uparxei h page diaforetika false
+    bool contains(int page) {      
         for (int i=0;i<16;i++) {
             if (pinakas[i].empty == false && pinakas[i].page == page) {
                 return true;
@@ -181,7 +181,7 @@ public:
         return false;
     }
 
-    int getFrameNumber(int page) { //epistrefei to framenumber diaforetika -1
+    int getFrameNumber(int page) { //returns the frame number -1
         for (int i=0;i<16;i++) {
             if (pinakas[i].empty == false && pinakas[i].page == page) {
                 return pinakas[i].frame;
@@ -190,7 +190,7 @@ public:
         return -1;
     }
 
-    void updateAge(int page) { //gia update ston tropo leitourgias tou lru
+    void updateAge(int page) { 
         for (int i=0;i<16;i++) {
             if (pinakas[i].empty == false && pinakas[i].page == page) {
                 max_age++;
@@ -199,7 +199,7 @@ public:
         }
     }
 
-    void insert(int page, int frame) {  //i insert den xreiazetai epipleon update to kanw edw mesa
+    void insert(int page, int frame) {  //insert doesnot need extra input do it in here
         for (int i=0;i<16;i++) {
             if (pinakas[i].empty) {         // empty cell found ...
                 pinakas[i].page = page;
@@ -210,6 +210,8 @@ public:
                 return;
             }
         }
+        
+        
         // lru code:
         int minage = pinakas[0].age;
         int position = 0;
@@ -267,33 +269,33 @@ public:
             page = (temp & 0x0000FF00) >> 8; //logican and  to read the page
             offset = (temp & 0x000000FF);   //logican and  to read the offset
             counter ++;
-            //Elegxoume se poia apo tis 3 periptwseis anoikei to page
-            if (tlb.contains(page)) {  //1i periptosi elegxw an uparxei sto tlb
-                int frame = tlb.getFrameNumber(page); //vriskw to frame apo to tlb
-                int physicalAddress = frame*FRAME_SIZE + offset; //upologizw tin fusiki dieuthinsi
-                tlb.updateAge(page); //update tin age afou xrisimopoioume lru
-                //physicalMemory.updateAge(frame); /// peritto, mporei na svistei, update tin age an kaname lru stin fusiki mnimi
+           
+            if (tlb.contains(page)) {  
+                int frame = tlb.getFrameNumber(page); 
+                int physicalAddress = frame*FRAME_SIZE + offset; 
+                tlb.updateAge(page); 
+                //physicalMemory.updateAge(frame); /// redundant, it can be erased, you can add it if we made a lot of physical memory
                 tlb_hits++;
-                byte = physicalMemory.getByte(frame, offset); //pernoume to byte apo tin fusiki mnimi
+                byte = physicalMemory.getByte(frame, offset);
                 cout << setw(4) << counter <<" V.Address = " << setw(5)<< temp  <<" ,P.Address = " << setw(5) << physicalAddress << " ,Byte = " << setw(4) <<(int)byte <<setw(9)<< " hit@TLB " << " ,Page = " << setw(3) << page << " ,Offset = " << setw(3) << offset << " ,Frame = " << setw(3) << frame <<endl;
-            } else if (virtualMemory.contains(page)) { //2i periptwsi afou den uparxei sto tlb tha eleksw sto VM table
+            } else if (virtualMemory.contains(page)) { //
                 int frame = virtualMemory.getFrameNumber(page); //vriskw to frame apo to VM table
-                int physicalAddress = frame*FRAME_SIZE + offset; //upologizw tin fusiki dieuthinsi
-                tlb.insert(page, frame);    //afou eixame hit sto VM table enimerwnw k to tlb table
-                //physicalMemory.updateAge(frame);  /// mporei na svistei, update tin age an kaname lru stin fusiki mnimi
+                int physicalAddress = frame*FRAME_SIZE + offset; //calculating physical address
+                tlb.insert(page, frame);    
+                //physicalMemory.updateAge(frame);  /// it can be erased, you can add it to the physical memory
                 vm_hits++;
                 tlb_misses++;
-                byte = physicalMemory.getByte(frame, offset); //pernoume to byte apo tin fusiki mnimi
+                byte = physicalMemory.getByte(frame, offset); //pass byte through physical memory
                 cout << setw(4) << counter <<" V.Address = " << setw(5)<< temp  <<" ,P.Address = " << setw(5) << physicalAddress << " ,Byte = " << setw(4) <<(int)byte << setw(9) <<" hit@VM " << " ,Page = " << setw(3) << page << " ,Offset = " << setw(3) << offset << " ,Frame = " << setw(3) << frame <<endl;
-            } else { //3i periptosi den uparxei oute sto tlb oute sto VM table ara to eisagoume stin mini k enimerwnoume tous tlb,vm table antistoixa
-                int frame = physicalMemory.insert(page); //to eisagw stin fusiki mnimi apo to backing store
-                int physicalAddress = frame*FRAME_SIZE + offset; //upologizw tin fusiki dieuthinsi
+            } else { 
+                int frame = physicalMemory.insert(page); //insert it into the physical memory from the Backing store
+                int physicalAddress = frame*FRAME_SIZE + offset; //calculate the physical address
                 virtualMemory.insert(page, frame);  //update tin VM
                 tlb.insert(page, frame);            //update ton tlb
-                //physicalMemory.updateAge(frame);    /// mporei na svistei, update tin age an kaname lru stin fusiki mnimi
+                //physicalMemory.updateAge(frame);    /// it can be erased, you can add it to the physical memory
                 tlb_misses++;
                 pf++;
-                byte = physicalMemory.getByte(frame, offset); //pernoume to byte apo tin fusiki mnimi
+                byte = physicalMemory.getByte(frame, offset); //update byte through natural memory
                 cout << setw(4) << counter <<" V.Address = " << setw(5)<< temp  <<" ,P.Address = " << setw(5) << physicalAddress << " ,Byte = " << setw(4) <<(int)byte << setw(9)<<" MISS " << " ,Page = " << setw(3) << page << " ,Offset = " << setw(3) << offset << " ,Frame = " << setw(3) << frame <<endl;
             }
         }
